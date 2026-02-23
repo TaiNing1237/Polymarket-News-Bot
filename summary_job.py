@@ -17,7 +17,9 @@ def format_volume(volume: float) -> str:
         return f"${volume / 1_000:.1f}K"
     return f"${volume:.0f}"
 
-def get_llm_summary(markets_data: list) -> str:
+from typing import Optional
+
+def get_llm_summary(markets_data: list) -> Optional[str]:
     """
     呼叫 Groq API (Llama 3 70B) 將 Polymarket 資料總結並加入背景常識。
     """
@@ -50,18 +52,13 @@ def get_llm_summary(markets_data: list) -> str:
 1. **推播主標題**：你的完整回覆的「第一行」必須固定是「<b>今日 {today_str} Polymarket市場動向</b>」，不要加上任何自創的問候語，然後空一行。
 2. **標題翻譯**：格式請用「<b>【事件 X】[中文翻譯]</b> <i>([英文原標題])</i>」。例如「<b>【事件 1】美國 2025 年關稅收入</b> <i>(How much revenue will the U.S. raise from tariffs in 2025?)</i>」
 3. **保留基本數據**：下一行忠實呈現「💰 總交易量：... \n ⏳ 截止：...」。
-4. **極致精煉子選項 (最重要的一點)**：不要在輸出中重複又長又無聊的問題原文！請你直接從我給的 `子選項原文` 中萃取出「核心關鍵字（如具體數字級距、球隊名、人名、具體日期）」，並以此作為該行的開頭。
+4. **極致精煉子選項 (最重要的一點)**：請直接萃取核心關鍵字，並在機率的旁邊「務必括號附加上 24 小時的變化率」(例如: `Yes: 96% (-1%)`)。
    - 錯誤示範：「- Will the U.S. collect less than $100b in revenue in 2025? ➔ Yes: 96% | No: 4%」
-   - 正確示範：「  - 低於 $100b ➔ Yes: 96%」 (如果 No 的機率就是對立面，也可以省略 No，讓版面更乾淨，保留 Yes 即可)
-   - 關於日期的額外規定：如果是問「某日期前發生」，請極度縮寫日期，不要寫「年/月/日」中文字。若為今年內發生請省略年份（如「6/30 前」）；若為明年發生請標註「明年」（如「明年 6/30 前」）；若為更久以後請保留公元年（如「2028 6/30 前」）。
-   - 關於標示符號：請你自行判斷該事件是「單一是非題」還是「多選項競爭」。
-     - 若為【單一是非題】（該事件只有一個子選項）：若 Yes 的機率 >= 50%，請在數字旁標示 🟢 (代表綠色)；若 Yes 的機率 < 50%，請標示 🔴 (代表紅色)。
-       - 範例：「  - 6/30 前 ➔ Yes: 48% 🔴」
-     - 若為【多選項競爭】（該事件有多個子選項，例如多人選舉、預算級距、多部電影競爭等）：絕對「不要」加上紅綠燈。請將你收到資料的第一名（也就是我排好序最高機率的那項）在開頭加上 👑 (皇冠圖示)，其餘選項不加任何圖示。
-       - 錯誤示範：「  - Sinners ➔ Yes: 14% 🔴」
-       - 正確示範：「  - 👑 One Battle After Another ➔ Yes: 74%」
-       - 正確示範：「  - Sinners ➔ Yes: 14%」
-5. **杜絕廢話分析**：不用幫每一個事件都擠出分析。如果該事件純粹就是數據，直接列出乾淨的名單即可。如果真的有特別的時事背景（例如新聞剛爆出某人退選），你才用「短短一句話」補充在該事件最下方。絕對禁止寫出「市場預期不確定性」這種毫無意義的文字。排版務必緊湊適合 Telegram 閱讀。
+   - 正確示範：「  - 低於 $100b ➔ Yes: 96% (+2%)」
+   - 關於日期的縮寫同前。
+   - 若為【單一是非題】，請在變化率旁加上紅綠燈。範例：「  - 6/30 前 ➔ Yes: 48% (-5%) 🔴」
+   - 若為【多選項競爭】，機率最高者加上皇冠，並附帶變化率。範例：「  - 👑 One Battle After Another ➔ Yes: 74% (+12%)」
+5. **杜絕廢話分析**：不用幫每一個事件擠出分析。排版務必緊湊適合 Telegram 閱讀。
 """
     try:
         chat_completion = client.chat.completions.create(
@@ -83,7 +80,8 @@ def get_llm_summary(markets_data: list) -> str:
         print(f"呼叫 Groq API 失敗: {e}")
         return None
 
-def run_summary():
+def generate_summary_text() -> str:
+    """擷取並產生最新 Polymarket 短評字串，不負責發送推播。"""
     api = PolymarketAPI()
     events = api.get_active_events(limit=300) # 提昇 limit 抓到足夠深度的巨頭資料
     
@@ -218,10 +216,15 @@ def run_summary():
             
             top_sub = ev['sub_markets'][:5]
             for m in top_sub:
-                odds_str = " | ".join(f"{o}: {p*100:.1f}%" for o, p in zip(m['outcomes'], m['prices']))
+                odds_str = " | ".join(f"{o}: {p*100:.1f}% ({chg*100:+.1f}%)" for o, p, chg in zip(m['outcomes'], m['prices'], m['price_changes']))
                 final_msg += f"  - {m['question']}: {odds_str}\n"
             final_msg += "\n"
-        
+            
+    return final_msg
+
+def run_summary():
+    final_msg = generate_summary_text()
+    
     # 發送給機器人
     notifier = TelegramNotifier()
     if notifier.is_configured():
