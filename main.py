@@ -37,7 +37,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if add_subscriber(chat_id):
         welcome_msg = (
             "✅ <b>歡迎使用 Polymarket 動向機器人！</b>\n\n"
-            "這個機器人會為您追蹤 Polymarket 預測市場上最熱門、流動性最高的話題，並在每天的 <b>早上 08:00</b> 與 <b>晚上 20:00</b> 自動為您發送最新的市場重點摘要，以及前 24 小時內的機率趨勢變化。\n\n"
+            "這個機器人會為您追蹤 Polymarket 預測市場上最熱門、流動性最高話題的即時勝率與數據，並在每天的 <b>早上 08:00</b> 自動為您發送最新的市場重點摘要，以及前 24 小時內的機率趨勢變化。\n\n"
             "若未來想取消訂閱，請隨時輸入 /stop\n\n"
             "正在為您整理最新市場動向，請稍候..."
         )
@@ -55,7 +55,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         already_msg = (
             "您已經在訂閱名單中了！\n"
-            "機器人將在每天的 08:00 與 20:00 發送最新動向。\n"
+            "機器人將在每天的 08:00 發送最新動向。\n"
             "若想取消訂閱，請輸入 /stop"
         )
         await update.message.reply_text(already_msg, parse_mode="HTML")
@@ -80,10 +80,9 @@ if __name__ == "__main__":
     load_dotenv()
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     
-    # Schedule to run every day at 08:00 and 20:00
+    # Schedule to run every day at 08:00
     schedule.every().day.at("08:00").do(job)
-    schedule.every().day.at("20:00").do(job)
-    logger.info("Scheduler configured. Will scan and send summary every day at 08:00 and 20:00. Press Ctrl+C to exit.")
+    logger.info("Scheduler configured. Will scan and send summary every day at 08:00. Press Ctrl+C to exit.")
     
     # Start schedule loop in background
     t = threading.Thread(target=run_schedule, daemon=True)
