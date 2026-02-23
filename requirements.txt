@@ -1,0 +1,6 @@
+requests
+python-telegram-bot
+python-dotenv
+pandas
+schedule
+groq

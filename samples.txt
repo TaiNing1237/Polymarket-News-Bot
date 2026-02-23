@@ -1,0 +1,41 @@
+===== 市場總覽 =====
+事件: MicroStrategy sells any Bitcoin by ___ ?
+問題: MicroStrategy sells any Bitcoin in 2025?
+賠率: [: 0.0%, ": 100.0%
+----------------------------------------
+事件: MicroStrategy sells any Bitcoin by ___ ?
+問題: MicroStrategy sells any Bitcoin by December 31, 2026?
+賠率: [: 11.5%, ": 88.5%
+----------------------------------------
+事件: MicroStrategy sells any Bitcoin by ___ ?
+問題: MicroStrategy sells any Bitcoin by March 31, 2026?
+賠率: [: 1.2%, ": 98.8%
+----------------------------------------
+事件: MicroStrategy sells any Bitcoin by ___ ?
+問題: MicroStrategy sells any Bitcoin by June 30, 2026?
+賠率: [: 6.5%, ": 93.5%
+----------------------------------------
+事件: Kraken IPO by ___ ?
+問題: Kraken IPO in 2025?
+賠率: [: 0.0%, ": 100.0%
+----------------------------------------
+事件: Kraken IPO by ___ ?
+問題: Kraken IPO by March 31, 2026?
+賠率: [: 17.5%, ": 82.5%
+----------------------------------------
+事件: Kraken IPO by ___ ?
+問題: Kraken IPO by December 31, 2026?
+賠率: [: 76.0%, ": 24.0%
+----------------------------------------
+事件: Macron out by...?
+問題: Macron out in 2025?
+賠率: [: 0.0%, ": 100.0%
+----------------------------------------
+事件: Macron out by...?
+問題: Macron out by June 30, 2026?
+賠率: [: 4.5%, ": 95.5%
+----------------------------------------
+事件: Macron out by...?
+問題: Macron out by October 31, 2025?
+賠率: [: 0.0%, ": 100.0%
+----------------------------------------
