@@ -74,6 +74,7 @@ def get_llm_summary(markets_data: list) -> Optional[str]:
             ],
             model="llama-3.3-70b-versatile",
             temperature=0.5,
+            timeout=45.0
         )
         return chat_completion.choices[0].message.content
     except Exception as e:
