@@ -5,7 +5,7 @@ import threading
 import os
 from dotenv import load_dotenv
 from summary_job import run_summary, generate_summary_text
-from telegram_bot import add_subscriber
+from telegram_bot import add_subscriber, remove_subscriber
 
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -35,7 +35,13 @@ def job():
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
     if add_subscriber(chat_id):
-        await update.message.reply_text("✅ <b>歡迎！</b>\n你已經成功訂閱 Polymarket 動向。下次更新時你會收到通知！\n\n正在為您整理最新市場動向，請稍候...", parse_mode="HTML")
+        welcome_msg = (
+            "✅ <b>歡迎使用 Polymarket 動向機器人！</b>\n\n"
+            "這個機器人會為您追蹤 Polymarket 預測市場上最熱門、流動性最高的話題，並在每天的 <b>早上 08:00</b> 與 <b>晚上 20:00</b> 自動為您發送最新的市場重點摘要，以及前 24 小時內的機率趨勢變化。\n\n"
+            "若未來想取消訂閱，請隨時輸入 /stop\n\n"
+            "正在為您整理最新市場動向，請稍候..."
+        )
+        await update.message.reply_text(welcome_msg, parse_mode="HTML")
         logger.info(f"New user subscribed: {chat_id}. Generating immediate summary...")
         
         try:
@@ -47,7 +53,20 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ 產生摘要時發生錯誤，您將在下次自動更新時收到正常推播。")
             
     else:
-        await update.message.reply_text("你已經在訂閱名單中了！", parse_mode="HTML")
+        already_msg = (
+            "您已經在訂閱名單中了！\n"
+            "機器人將在每天的 08:00 與 20:00 發送最新動向。\n"
+            "若想取消訂閱，請輸入 /stop"
+        )
+        await update.message.reply_text(already_msg, parse_mode="HTML")
+
+async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+    if remove_subscriber(chat_id):
+        await update.message.reply_text("⛔️ <b>已取消訂閱</b>\n您將不再收到 Polymarket 的定時動向推播。未來若想重新開啟，隨時可以輸入 /start 再次訂閱！", parse_mode="HTML")
+        logger.info(f"User unsubscribed: {chat_id}")
+    else:
+        await update.message.reply_text("您目前不在訂閱名單中喔！", parse_mode="HTML")
 
 def run_schedule():
     """執行排程的背景執行緒函數"""
@@ -77,6 +96,7 @@ if __name__ == "__main__":
         logger.info("Starting Telegram Bot Polling...")
         application = Application.builder().token(bot_token).build()
         application.add_handler(CommandHandler("start", start_command))
+        application.add_handler(CommandHandler("stop", stop_command))
         
         # Run polling (this blocks the main thread)
         application.run_polling()

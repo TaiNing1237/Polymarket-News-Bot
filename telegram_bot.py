@@ -39,6 +39,19 @@ def add_subscriber(chat_id):
             logger.error(f"Error writing to subscribers.json: {e}")
     return False
 
+def remove_subscriber(chat_id):
+    subscribers = get_subscribers()
+    chat_id_str = str(chat_id)
+    if chat_id_str in subscribers:
+        subscribers.remove(chat_id_str)
+        try:
+            with open("subscribers.json", "w", encoding="utf-8") as f:
+                json.dump(subscribers, f, indent=4)
+            return True
+        except Exception as e:
+            logger.error(f"Error writing to subscribers.json: {e}")
+    return False
+
 class TelegramNotifier:
     def __init__(self):
         self.bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
