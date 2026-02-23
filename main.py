@@ -3,11 +3,14 @@ import time
 import schedule
 from summary_job import run_summary
 
-# Configure standard logging to output to console
+# Configure standard logging to output to console and file
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("polymarket.log", encoding="utf-8")
+    ]
 )
 
 logger = logging.getLogger(__name__)
