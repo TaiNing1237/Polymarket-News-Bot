@@ -19,3 +19,6 @@ env/
 
 # Logs
 *.log
+
+# Subscribers
+subscribers.json
