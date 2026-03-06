@@ -1,117 +1,143 @@
 # Polymarket Sentinel 🦅
 
-Polymarket Sentinel 目前是一個基於 Python 開發的「預測市場熱榜推播機器人」。主要透過 Polymarket Gamma API 每兩小時 (或早晚 定時) 自動擷取全站資金流動量最大的時事話題，清除龐雜的運動賽事後，交由 LLM (Llama-3) 萃取子選項關鍵字並翻譯，最後格式化發送到使用者的 Telegram 頻道。
+每天自動從 Polymarket 挑選一個熱門話題深度分析，結合 Google News 最新動態，用繁體中文發送到 Telegram。
+
+**核心理念：不每天推 10 個市場（容易重複無聊），改為每天深挖一個最值得關注的話題。**
 
 ---
 
-## 🛠 目前實作邏輯 (Current Implementation)
+## 架構
 
-1. **深度資料抓取與過濾**
-   - 透過 API 取得 Polymarket 全站前 `300` 筆 trending 事件，以確保能挖出深藏不露但交易量駭人的超級綜合選項 (如「GTA 6 發行前會發生啥事」)。
-   - **體育過濾器**: 自動偵測 `seriesSlug` 與 `tags`，過濾掉所有附帶 `NBA`, `NFL`, `NHL`, `MLB`, `UFC`, `Soccer`, `Tennis` 等標籤的賽事，保留最核心的政治、經濟與娛樂話題。
+本專案使用 **n8n** 視覺化工作流 + **Google Sheets** 管理用戶，取代原有的 Python bot。
 
-2. **精準群組化與雙重排序 (Sorting & Grouping)**
-   - 將同一個大事件 (`event_slug`) 旗下的所有子市場組合在一起，解決 API 預設回傳零散市場的問題。
-   - **大盤排序**: 依據該事件底下的「總交易量 (Total Volume)」降冪排序，取出最熱門的前 20 大事件。
-   - **時間排序**: 在這 20 大熱門中，再次依照「截止日期 (`end_date`)」由近到遠重新排序，精選出即將開獎的 Top 10 事件。
-   - 事件整體的截止日期會自動取旗下所有子市場的最晚期限 (`max(sub_market ends)`)，避免日期錯亂。
-
-3. **微觀子選項排序與 LLM 萃取**
-   - 若為**單一是非題** (僅1個選項)：直接呈現。若是問日期，Prompt 會強制 LLM 把日期極度縮寫 (例如 `6/30 前`)，且跨年時必須標註 `明年 6/30 前`。
-   - 若為**多選項競爭**：系統會依據目前市場上的「Yes 獲勝機率」由高至低重新排序，並僅擷取前 5 名。
-   - LLM 負責將英文原問題提煉為最純粹的**核心關鍵字** (如: 人名、球隊、具體數字範圍)，避免冗長無聊的問句洗版。
-
-4. **Telegram 限定的視覺化 UI 與多用戶訂閱**
-   - 支援多用戶訂閱：向機器人發送 `/start` 即可訂閱定時推播，發送 `/stop` 即可取消。首次訂閱時將會**即時獲得最新報價**。
-   - 每篇標題提供【雙語對照】：`【事件 X】[流暢中文翻譯] (英文原標題)`。
-   - 總交易量精簡為 `k / M` 格式展示 (如 `$6.8M`)。
-   - **動態符號標記 ( Emoji UI )** 與 **24H 變化率**:
-     - 對於「單一是非題」：勝率 >= 50% 標註 🟢，勝率 < 50% 標註 🔴。機率旁附帶 24 小時變化，例如 `Yes: 93% (-1%) 🔴`。
-     - 對於「多選項競爭」：移除紅綠燈，改為在命中率最高的第一名選項開頭標註 👑 (皇冠)。機率旁依然附帶變化率。
-   - LLM 限定以一句話客觀解釋為何市場會開出這個機率，嚴禁廢話分析。
-
-5. **自動化部署**
-   - 透過內建的 `schedule` 套件，目前設定為每天早晨 `08:00` 自動從背景產出報表並推播。
-
----
-
-## 🚀 未來量化交易架構規劃 (Future Event-Driven Trading)
-
-本專案將演進為一個 **「事件驅動型量化模擬交易系統 (Event-Driven Algorithmic Paper Trading System)」。**
-
-### 1. 偵測與下單引擎 (The Hunter)
-- **執行頻率**: `每 1 分鐘`
-- **主要職責**: 尋找進場時機
-  1. 擷取降息機率、大選等「特定目標市場」的即時機率。
-  2. 爬取過去 1 分鐘內的最新重大新聞 (Twitter, RSS, News APIs)。
-  3. LLM 瞬間判定該新聞是否翻轉市場預期，給出 BUY/SELL 建議。
-  4. 若有強烈訊號，寫入 `SQLite` 產生一筆「虛擬訂單」，狀態設為 OPEN。
-
-### 2. 結算清算引擎 (The Closer)
-- **執行頻率**: `每 1 分鐘`
-- **主要職責**: 持倉監控與收割
-  1. 讀取 `SQLite` 中狀態為 `OPEN` 且滿足平倉條件（例如: 持倉滿 1 小時）的訂單。
-  2. 取得該選項結算時的最新機率。
-  3. 比較買入成本與現價，計算盈虧 (PnL)。
-  4. 將狀態變更為 `CLOSED`，並發送獲利戰報至 Telegram 頻道。
-
----
-
-## ⚡ 如何啟動 (Setup Guide)
-
-此專案支援在 Windows 上無痛執行，並具有背景常駐功能。
-
-### 1. 取得所需的 API Keys (完全免費)
-
-這支程式依賴於免費的 AI 與 Telegram 推播服務：
-
-**A. 取得 Groq API Key (免費強大的 Llama 3)**
-1. 前往 [Groq Console](https://console.groq.com/keys) 並註冊帳號。
-2. 點擊 `Create API Key`，隨便取個名字。
-3. 將產生的金鑰複製下來。
-
-**B. 取得 Telegram Bot Token**
-1. 打開 Telegram，搜尋 `@BotFather` 並傳送訊息 `/newbot`。
-2. 替你的機器人取個名字和 Username。
-3. BotFather 會給你一串 Token（例如：`123456789:ABCdefGHIjklMNOpqrsTUVwxyz`），請複製下來。
-
-**C. 取得 Telegram Chat ID (選擇性)**
-1. 上述設定後，機器人即可透過 `/start` 指令服務任何人。若您想設定**預設廣播目標** (例如您自己的 ID 或某個群組)，可以依照以下步驟：
-2. 在 Telegram 搜尋剛剛創立的機器人 Username，點擊 Start 或直接傳送 `/start` 給它。
-3. （可選）您可以打開瀏覽器前往：`https://api.telegram.org/bot<你的BotToken>/getUpdates`
-   *(記得把 `<你的BotToken>` 換成你上一步拿到的字串)*
-4. 在畫面顯示的 JSON 中找到 `"chat":{"id": 12345678,...}`，那串數字（如 `12345678`）就是此帳號或群組的 Chat ID。
-
-### 2. 設定環境變數
-
-1. 在專案資料夾中，複製 `.env.example` 檔案並重新命名為 `.env`。
-2. 用任何文字編輯器（如記事本）打開 `.env`。
-3. 將剛剛取得的三把鑰匙填入對應的位置：
-
-```ini
-GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxx
-TELEGRAM_BOT_TOKEN=123456789:ABCdefGHI...
-TELEGRAM_CHAT_ID=12345678 # 選填，沒填也可，任何人在 Telegram 輸入 /start 依然會自動被加入訂閱名單
+```
+Polymarket API ──► 過濾運動/排序 ──► 加權隨機選一個話題
+                                          │
+                                    Google Search（最新新聞）
+                                          │
+                                     Groq AI 深度分析
+                                          │
+                              Telegram 發給所有訂閱者
 ```
 
-### 3. 安裝與執行
+---
 
-#### 📍 初次安裝 (Windows)
-在專案目錄下打開終端機 (PowerShell 或 Command Prompt)：
+## 三個 n8n Workflows
+
+### Workflow A：每日排程（08:00）
+1. 抓 Polymarket top 300 events
+2. 過濾運動賽事、按 event_slug 分組、加總 volume
+3. 取 top 20，再依到期日取 top 10
+4. 讀 Google Sheets `sent_history`（近 14 天）→ 排除已發過的話題
+5. **加權隨機選一個話題**（volume 越大被選中機率越高）
+6. SerpAPI Google Search 抓最新新聞
+7. Groq API（llama-3.3-70b）生成中文深度分析
+8. 記錄到 `sent_history`，更新 `config` 的 `last_message`
+9. 讀 `subscribers`，Loop → Telegram 發給所有人
+
+### Workflow B：Telegram Bot（Webhook）
+- `/start`：加入 `subscribers`，把最後一封訊息（`config.last_message`）轉發給新用戶
+- `/stop`：設 `subscribers.active = FALSE`
+
+### Workflow C：錯誤監控（選配）
+- 任何 workflow 失敗時，Telegram 通知自己
+
+---
+
+## Google Sheets 結構
+
+**試算表名稱：polymarket-sentinel**
+
+### `subscribers` tab
+| chat_id | subscribed_at | active | username |
+|---|---|---|---|
+| 123456789 | 2026-03-06T08:00:00Z | TRUE | @alice |
+
+### `sent_history` tab
+| sent_date | event_slug | event_title | total_volume | full_message | sent_at |
+|---|---|---|---|---|---|
+| 2026-03-06 | will-trump-x | Will Trump... | 5000000 | （完整訊息）| 2026-03-06T08:05:00Z |
+
+### `config` tab
+| key | value |
+|---|---|
+| last_message | （今天最新的完整訊息，每天更新） |
+| last_sent_at | 2026-03-06T08:05:00Z |
+
+---
+
+## 設定步驟
+
+### 1. n8n（已有 Docker）
+
+需要對外 HTTPS URL 供 Telegram webhook 使用。用 **Cloudflare Tunnel**（免費）：
 
 ```bash
-# 1. 建立並啟動虛擬環境 (強烈建議)
-python -m venv .venv
-.\.venv\Scripts\activate
+# 安裝 cloudflared（Windows）
+# 下載 https://github.com/cloudflare/cloudflared/releases/latest
 
-# 2. 安裝必要的套件
-pip install -r requirements.txt
+# 快速測試（URL 每次重啟會變）
+cloudflared tunnel --url http://localhost:5678
+
+# 穩定方案（需要 Cloudflare 帳號 + 域名）
+cloudflared login
+cloudflared tunnel create n8n-tunnel
+cloudflared tunnel run n8n-tunnel
 ```
 
-#### 📍 日常啟動與背景執行
-我們已經為 Windows 用戶準備了專屬的執行檔：
+在 `docker-compose.yml` 加入：
+```yaml
+environment:
+  - WEBHOOK_URL=https://your-tunnel-url
+  - N8N_HOST=your-tunnel-url
+```
 
-- **啟動機器人：** 直接在資料夾中「雙擊」 `start_background.bat`。
-- **背景常駐：** 畫面上會跳出一個黑色的終端機視窗，只要你不關閉它，它就會每天早上 08:00 自動為你推播最新市場動向。
-- **查看狀態：** 所有的執行日誌與錯誤都會自動儲存到專案目錄下的 `polymarket.log` 檔案中，你可以隨時打開它查看機器人是否正常運作。
-- **修改程式碼：** 如果你修改了 `.py` 檔案，你需要關掉原先的黑色視窗，再重新雙擊一次 `start_background.bat` 套用新設定。
+### 2. 設定 Telegram Webhook（一次性）
+
+```
+GET https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://your-n8n-url/webhook/telegram-bot
+```
+
+> ⚠️ 設定後舊 Python bot 必須停止（同一個 Token 不能同時 polling + webhook）
+
+### 3. n8n Credentials（在 n8n UI 的 Settings > Credentials 設定）
+
+| 服務 | 類型 | 說明 |
+|------|------|------|
+| Groq | HTTP Header Auth | `Authorization: Bearer gsk_xxx` |
+| Telegram | Telegram Bot API | Bot Token |
+| Google Sheets | Google OAuth2 | 需要 OAuth 授權流程 |
+| SerpAPI | HTTP Header Auth | API Key（免費 100次/月，夠用） |
+
+### 4. 所需 API Keys
+
+| 服務 | 取得方式 | 費用 |
+|------|---------|------|
+| Groq | [console.groq.com/keys](https://console.groq.com/keys) | 免費 |
+| Telegram Bot | 向 `@BotFather` 發 `/newbot` | 免費 |
+| SerpAPI | [serpapi.com](https://serpapi.com) | 免費 100次/月 |
+| Google Sheets | Google Cloud Console > OAuth 2.0 | 免費 |
+
+---
+
+## 推播格式（Telegram）
+
+```
+今日深度聚焦：[中文話題標題]
+
+市場怎麼說：...（賠率 + 24H 變化的含意）
+
+新聞背景：...（最新新聞整理）
+
+市場邏輯：...（新聞與賠率的關係）
+
+值得關注：...（2 個關鍵指標或日期）
+
+Polymarket: https://polymarket.com/event/[slug]
+```
+
+---
+
+## Legacy
+
+原有的 Python 實作（`main.py`, `summary_job.py` 等）已移至 [`legacy/`](./legacy/) 資料夾，僅供參考。
